@@ -1,0 +1,14 @@
+[package]
+name = "calvest"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.84"
+
+[dependencies]
+anyhow = "1.0.95"
+chrono = "0.4.39"
+chrono-tz = "0.10.1"
+clap = { version = "4.5.0", features = ["derive"] }
+csv = "1.3.1"
+ical = { version = "0.11.0", features = ["ical"], default-features = false }
+regex = "1.11.1"
