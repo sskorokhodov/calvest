@@ -22,6 +22,38 @@ file that can be imported into Harvest.
 - **CSV Output**: The tool outputs a CSV file that includes event details
   alongside user-defined extra properties, ready for direct import into Harvest.
 
+## Installation
+
+Ensure you have **Rust** installed on your machine. If Rust is not installed,
+you can install it by following the instructions on the [official Rust
+website](https://www.rust-lang.org/tools/install).
+
+1. **Clone the Repository**
+
+   Open a terminal and clone the repository to your local machine using the following command:
+
+   ```bash
+   git clone https://github.com/yourusername/calvest.git
+   cd calvest
+   cargo install --path .
+   ```
+
+2. **Verify the Installation**
+
+   Confirm that `calvest` is installed correctly by checking its version:
+
+   ```bash
+   calvest --version
+   ```
+
+2. **Optionally, print completions for you shell**
+
+   Print completions for your shell to the corresponding file, e.g.,
+
+   ```bash
+   calvest --print-completions zsh > ~/.oh-my-zsh/cache/completions/_calvest
+   ```
+
 ## Example
 
 It can be convenient to create a Bash/Just script like this ...
