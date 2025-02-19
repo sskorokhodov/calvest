@@ -6,7 +6,7 @@ This tool is for those, who uses [Harvest][harvest] but prefers tracking my
 tasks in a calendar app.
 
 The process of manually transferring tasks from the calendar to Harvest is
-time-consuming, erorr prone, and tedeous. **calvest** is a command-line tool
+time-consuming, erorr prone, and tedious. **calvest** is a command-line tool
 designed to transform data in iCalendar (`.ics`) format into a structured CSV
 file that can be imported into Harvest.
 
