@@ -35,15 +35,19 @@ Ensure you have **Rust** installed on your machine. If Rust is not installed,
 you can install it by following the instructions on the [official Rust
 website](https://www.rust-lang.org/tools/install).
 
-1. **Clone the Repository**
+1. **Clone the repository and install the binary**
 
-   Open a terminal and clone the repository to your local machine using the following command:
+   Clone the repository and install the binary into your Cargo installation root
+   `bin` folder.
 
    ```bash
    git clone https://github.com/yourusername/calvest.git
    cd calvest
    cargo install --path .
    ```
+
+   Ensure your [Cargo installation root `bin` folder][cargo-install] is on the
+   `"${PATH}"`.
 
 2. **Verify the Installation**
 
@@ -106,3 +110,4 @@ Events collected. Events total: 95
 ```
 
 [harvest]: https://www.getharvest.com/
+[cargo-install]: https://doc.rust-lang.org/cargo/commands/cargo-install.html
