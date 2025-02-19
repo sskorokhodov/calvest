@@ -88,7 +88,7 @@ fn cli() -> clap::Command {
             Arg::new("input")
                 .long("input")
                 .value_name("FILE")
-                .help("Read the YAML from <FILE> instead of <stdin>.")
+                .help("Read the ical data from <FILE> instead of <stdin>.")
                 .value_parser(clap::value_parser!(PathBuf))
                 .required_unless_present("print-completions")
                 .num_args(1),
@@ -134,13 +134,25 @@ fn cli() -> clap::Command {
                 .value_name("START_DATE")
                 .value_parser(date_str_to_datetime)
                 .num_args(1)
-                .help("Set the start date for filtering events."),
+                .help(wrap_help(
+                    [
+                        "Include events from the <START_DATE>.",
+                        "The date must be in ISO 8601 format, e.g., 2025-01-15.",
+                    ]
+                    .join(" "),
+                )),
             Arg::new("end-date")
                 .long("end-date")
                 .value_name("END_DATE")
                 .value_parser(date_str_to_datetime)
                 .num_args(1)
-                .help("Set the end date for filtering events."),
+                .help(wrap_help(
+                    [
+                        "Include events up to the <END_DATE>.",
+                        "The date must be in ISO 8601 format, e.g., 2025-01-15.",
+                    ]
+                    .join(" "),
+                )),
             Arg::new("task")
                 .long("task")
                 .value_names(&["TASK_NAME", "PROJECT_NAME", "CLIENT_NAME", "REGEX"])
