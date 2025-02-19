@@ -79,7 +79,9 @@ fn current_month_start() -> DateTime<Utc> {
 
 pub(crate) fn config() -> Config {
     let matches = Command::new("calvest - iCal to Harvest (CSV) transformer")
-        .author("Simon Skorokhodov")
+        .author(clap::crate_authors!())
+        .version(clap::crate_version!())
+        .about(clap::crate_description!())
         .args([
             Arg::new("input")
                 .long("input")
