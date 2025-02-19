@@ -12,6 +12,7 @@ use clap::Arg;
 use clap::ArgAction;
 use clap::Command;
 use clap::ValueEnum;
+use clap_complete::Shell;
 use regex::Regex;
 use std::path::PathBuf;
 
@@ -77,25 +78,31 @@ fn current_month_start() -> DateTime<Utc> {
         .to_utc()
 }
 
-pub(crate) fn config() -> Config {
-    let matches = Command::new("calvest - iCal to Harvest (CSV) transformer")
+fn cli() -> clap::Command {
+    Command::new("calvest - iCal to Harvest (CSV) transformer")
         .author(clap::crate_authors!())
         .version(clap::crate_version!())
+        .long_version(clap::crate_version!())
         .about(clap::crate_description!())
         .args([
+            Arg::new("print-completions")
+                .long("print-completions")
+                .value_name("SHELL")
+                .help("Print shell completions.")
+                .value_parser(clap::value_parser!(clap_complete::Shell)),
             Arg::new("input")
                 .long("input")
                 .value_name("FILE")
                 .help("Read the YAML from <FILE> instead of <stdin>.")
                 .value_parser(clap::value_parser!(PathBuf))
-                .required(true)
+                .required_unless_present("print-completions")
                 .num_args(1),
             Arg::new("output")
                 .long("output")
                 .value_name("FILE")
                 .help("Write the result into the <FILE> instead of printing to <stdout>.")
                 .value_parser(clap::value_parser!(PathBuf))
-                .required(true)
+                .required_unless_present("print-completions")
                 .num_args(1),
             Arg::new("include-property")
                 .long("include-property")
@@ -142,24 +149,35 @@ pub(crate) fn config() -> Config {
                 .action(ArgAction::Append)
                 .value_parser(NonEmptyStringValueParser::new())
                 .num_args(3)
-                .required(true)
+                .required_unless_present("print-completions")
                 .help("Set the default task with the task name."),
             Arg::new("first-name")
                 .long("first-name")
                 .value_name("FIRST_NAME")
                 .num_args(1)
                 .value_parser(NonEmptyStringValueParser::new())
-                .required(true)
+                .required_unless_present("print-completions")
                 .help("Set the employe first name."),
             Arg::new("last-name")
                 .long("last-name")
                 .value_name("LAST_NAME")
                 .value_parser(NonEmptyStringValueParser::new())
                 .num_args(1)
-                .required(true)
+                .required_unless_present("print-completions")
                 .help("Set the employe last name."),
         ])
-        .get_matches();
+}
+
+pub(crate) fn config() -> Config {
+    let matches = cli().get_matches();
+
+    if let Some(shell) = matches.get_one::<Shell>("print-completions").copied() {
+        let mut cmd = cli();
+        eprintln!("Generating completion file for {shell}...");
+        let name = cmd.get_name().to_string();
+        clap_complete::generate(shell, &mut cmd, name, &mut std::io::stdout());
+        std::process::exit(0);
+    }
 
     let (start_date, end_date) = match matches.get_one::<Period>("period").cloned() {
         Some(Period::LastMonth) => {
