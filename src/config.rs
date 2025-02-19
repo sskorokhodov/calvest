@@ -85,11 +85,6 @@ fn cli() -> clap::Command {
         .long_version(clap::crate_version!())
         .about(clap::crate_description!())
         .args([
-            Arg::new("print-completions")
-                .long("print-completions")
-                .value_name("SHELL")
-                .help("Print shell completions.")
-                .value_parser(clap::value_parser!(clap_complete::Shell)),
             Arg::new("input")
                 .long("input")
                 .value_name("FILE")
@@ -104,45 +99,6 @@ fn cli() -> clap::Command {
                 .value_parser(clap::value_parser!(PathBuf))
                 .required_unless_present("print-completions")
                 .num_args(1),
-            Arg::new("include-property")
-                .long("include-property")
-                .value_name("PROPERTY_NAME")
-                .help(wrap_help(
-                    [
-                        "Additional property to include into the CSV.",
-                        "The property name becomes the column name.",
-                    ]
-                    .join(" "),
-                ))
-                .action(ArgAction::Set)
-                .num_args(1),
-            Arg::new("task")
-                .long("task")
-                .value_names(&["TASK_NAME", "PROJECT_NAME", "CLIENT_NAME", "REGEX"])
-                .value_parser(NonEmptyStringValueParser::new())
-                .action(ArgAction::Append)
-                .num_args(4)
-                .help("Use these task, project, client when the event summary matches the regex."),
-            Arg::new("start-date")
-                .long("start-date")
-                .value_name("START_DATE")
-                .value_parser(date_str_to_datetime)
-                .num_args(1)
-                .help("Set the start date for filtering events."),
-            Arg::new("end-date")
-                .long("end-date")
-                .value_name("END_DATE")
-                .value_parser(date_str_to_datetime)
-                .num_args(1)
-                .help("Set the end date for filtering events."),
-            Arg::new("period")
-                .long("timeframe")
-                .alias("period")
-                .conflicts_with_all(["start-date", "end-date"])
-                .value_name("PERIOD")
-                .value_parser(clap::value_parser!(Period))
-                .num_args(1)
-                .help("Set the end date for filtering events."),
             Arg::new("default-task")
                 .long("default-task")
                 .value_names(&["TASK_NAME", "PROJECT_NAME", "CLIENT_NAME"])
@@ -165,6 +121,52 @@ fn cli() -> clap::Command {
                 .num_args(1)
                 .required_unless_present("print-completions")
                 .help("Set the employe last name."),
+            Arg::new("period")
+                .long("timeframe")
+                .alias("period")
+                .conflicts_with_all(["start-date", "end-date"])
+                .value_name("PERIOD")
+                .value_parser(clap::value_parser!(Period))
+                .num_args(1)
+                .help("Set the period for filtering events."),
+            Arg::new("start-date")
+                .long("start-date")
+                .value_name("START_DATE")
+                .value_parser(date_str_to_datetime)
+                .num_args(1)
+                .help("Set the start date for filtering events."),
+            Arg::new("end-date")
+                .long("end-date")
+                .value_name("END_DATE")
+                .value_parser(date_str_to_datetime)
+                .num_args(1)
+                .help("Set the end date for filtering events."),
+            Arg::new("task")
+                .long("task")
+                .value_names(&["TASK_NAME", "PROJECT_NAME", "CLIENT_NAME", "REGEX"])
+                .value_parser(NonEmptyStringValueParser::new())
+                .action(ArgAction::Append)
+                .num_args(4)
+                .help(
+                    "Use these task, project, and client when the event summary matches the regex.",
+                ),
+            Arg::new("include-property")
+                .long("include-property")
+                .value_name("PROPERTY_NAME")
+                .help(wrap_help(
+                    [
+                        "Additional property to include into the CSV.",
+                        "The property name becomes the column name.",
+                    ]
+                    .join(" "),
+                ))
+                .action(ArgAction::Set)
+                .num_args(1),
+            Arg::new("print-completions")
+                .long("print-completions")
+                .value_name("SHELL")
+                .help("Print shell completions.")
+                .value_parser(clap::value_parser!(clap_complete::Shell)),
         ])
 }
 
