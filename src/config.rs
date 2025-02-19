@@ -79,7 +79,7 @@ fn current_month_start() -> DateTime<Utc> {
 }
 
 fn cli() -> clap::Command {
-    Command::new("calvest - iCal to Harvest (CSV) transformer")
+    Command::new(clap::crate_name!())
         .author(clap::crate_authors!())
         .version(clap::crate_version!())
         .long_version(clap::crate_version!())
