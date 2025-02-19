@@ -1,10 +1,17 @@
-# Calvest - iCalendar to CSV Converter for Harvest
+# calvest - iCalendar to CSV Converter for Harvest
 
 ## Overview
 
-Harvest is a time-tracking and invoicing software. **calvest** is a command-line
-tool designed to transform data in iCalendar (iCal) format into a structured CSV
+This tool is for those, who uses [Harvest][harvest] but prefers tracking my
+tasks in a calendar app.
+
+The process of manually transferring tasks from the calendar to Harvest is
+time-consuming, erorr prone, and tedeous. **calvest** is a command-line tool
+designed to transform data in iCalendar (`.ics`) format into a structured CSV
 file that can be imported into Harvest.
+
+At the moment **calvest** is only tested with the iCal data exported from Google
+Calendar.
 
 ## Features
 
@@ -90,10 +97,12 @@ calvest \
 calvest.sh --timeframe='last-month'
 ```
 
-The output looks as follows
+The console output may look like below
 
 ```text
 Collecting events from 2025-01-01 (inclusive) to 2025-02-01 (exclusive) ...
 
 Events collected. Events total: 95
 ```
+
+[harvest]: https://www.getharvest.com/
