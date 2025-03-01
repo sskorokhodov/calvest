@@ -80,6 +80,20 @@ fn current_month_start() -> DateTime<Utc> {
         .to_utc()
 }
 
+fn prev_month_start(dt: &DateTime<Utc>) -> DateTime<Utc> {
+    dt.with_day(1)
+        .unwrap()
+        .checked_sub_days(Days::new(1))
+        .unwrap()
+}
+
+fn next_month_start(dt: &DateTime<Utc>) -> DateTime<Utc> {
+    dt.checked_add_months(Months::new(1))
+        .unwrap()
+        .with_day(1)
+        .unwrap()
+}
+
 fn cli() -> clap::Command {
     Command::new(clap::crate_name!())
         .author(clap::crate_authors!())
@@ -204,17 +218,13 @@ pub(crate) fn config() -> Config {
 
     let (start_date, end_date) = match matches.get_one::<Period>("period").cloned() {
         Some(Period::LastMonth) => {
-            let start_date = current_month_start()
-                .checked_sub_months(Months::new(1))
-                .unwrap();
             let end_date = current_month_start();
+            let start_date = prev_month_start(&end_date);
             (Some(start_date), Some(end_date))
         }
         Some(Period::ThisMonth) => {
             let start_date = current_month_start();
-            let end_date = current_month_start()
-                .checked_add_months(Months::new(1))
-                .unwrap();
+            let end_date = next_month_start(&start_date);
             (Some(start_date), Some(end_date))
         }
         None => (
