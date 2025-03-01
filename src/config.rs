@@ -14,6 +14,7 @@ use clap::Command;
 use clap::ValueEnum;
 use clap_complete::Shell;
 use regex::Regex;
+use std::collections::HashSet;
 use std::path::PathBuf;
 
 fn wrap_at<S: ToString>(s: S, at: usize) -> String {
@@ -53,6 +54,7 @@ pub(crate) struct Config {
     pub(crate) start_date: Option<DateTime<Utc>>,
     pub(crate) end_date: Option<DateTime<Utc>>,
     pub(crate) tasks: Vec<TaskPattern>,
+    pub(crate) required_attendies: HashSet<String>,
 }
 
 fn date_str_to_datetime(s: &str) -> Result<DateTime<Utc>, String> {
@@ -153,6 +155,13 @@ fn cli() -> clap::Command {
                     ]
                     .join(" "),
                 )),
+            Arg::new("required-attendee")
+                .long("required-attendee")
+                .value_name("ATTENDEE")
+                .value_parser(NonEmptyStringValueParser::new())
+                .action(ArgAction::Set)
+                .num_args(1)
+                .help("Require this attendee to accept the event."),
             Arg::new("task")
                 .long("task")
                 .value_names(&["TASK_NAME", "PROJECT_NAME", "CLIENT_NAME", "REGEX"])
@@ -258,6 +267,12 @@ pub(crate) fn config() -> Config {
                     regex: Regex::new(c[3]).unwrap(),
                 }
             })
+            .collect(),
+        required_attendies: matches
+            .get_many::<String>("required-attendee")
+            .unwrap_or_default()
+            .into_iter()
+            .map(Clone::clone)
             .collect(),
     };
     config

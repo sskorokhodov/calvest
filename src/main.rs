@@ -6,6 +6,7 @@ use crate::config::Config;
 use ::ical::{parser::ical::component::IcalEvent, IcalParser};
 use anyhow::{anyhow, Result};
 use chrono::Local;
+use std::collections::HashSet;
 use std::fs::{File, OpenOptions};
 use std::io::{self, BufReader, Write};
 use std::os::fd::{AsRawFd, FromRawFd};
@@ -19,7 +20,7 @@ impl Work {
     fn from_ical_event_props(
         event_props: &[::ical::property::Property],
         config: &Config,
-    ) -> Result<Self> {
+    ) -> Result<Option<Self>> {
         let n_extra_props = config.extra_props.len();
         let mut props = Vec::<Option<String>>::with_capacity(n_extra_props);
         props.resize(n_extra_props, None);
@@ -28,8 +29,34 @@ impl Work {
             config.last_name.clone(),
             config.default_task.clone(),
         );
+        let mut attendeies = HashSet::new();
+        let accepted_state_name = "ACCEPTED".to_string();
         for prop in event_props.iter() {
             match prop.name.as_str() {
+                "ORGANIZER" => {
+                    if !config.required_attendies.is_empty() {
+                        if let Some(value) = &prop.value {
+                            attendeies.insert(value.clone());
+                        }
+                    }
+                }
+                "ATTENDEE" => {
+                    if !config.required_attendies.is_empty() {
+                        if let Some(value) = &prop.value {
+                            if let Some(params) = &prop.params {
+                                if params
+                                    .iter()
+                                    .find(|p| {
+                                        p.0 == "PARTSTAT" && p.1.contains(&accepted_state_name)
+                                    })
+                                    .is_some()
+                                {
+                                    attendeies.insert(value.clone());
+                                }
+                            }
+                        }
+                    }
+                }
                 "SUMMARY" => work.notes = prop.value.clone(),
                 "DTSTART" => {
                     let value = prop
@@ -56,7 +83,11 @@ impl Work {
                 }
             }
         }
-        Ok(Self { inner: work, props })
+        if attendeies.is_empty() || config.required_attendies.is_subset(&attendeies) {
+            Ok(Some(Self { inner: work, props }))
+        } else {
+            Ok(None)
+        }
     }
 }
 
@@ -144,7 +175,10 @@ fn open_csv_writer(config: &Config) -> Result<csv::Writer<File>> {
 
 fn process_event(event: &IcalEvent, config: &Config) -> Result<Option<Work>> {
     let patterns = &config.tasks;
-    let mut work = Work::from_ical_event_props(&event.properties, &config)?;
+    let work = Work::from_ical_event_props(&event.properties, &config)?;
+    let Some(mut work) = work else {
+        return Ok(None);
+    };
     if work
         .inner
         .starts_within(&config.start_date, &config.end_date)
