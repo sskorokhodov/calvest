@@ -3,24 +3,23 @@ mod harvest;
 mod ical;
 
 use crate::config::Config;
+use crate::ical::Event;
 use ::ical::{parser::ical::component::IcalEvent, IcalParser};
 use anyhow::{anyhow, Result};
-use chrono::Local;
-use std::collections::HashSet;
+use chrono::{NaiveDate, Utc};
+use std::collections::{HashMap, HashSet};
 use std::fs::{File, OpenOptions};
 use std::io::{self, BufReader, Write};
 use std::os::fd::{AsRawFd, FromRawFd};
 
+#[derive(Debug, Clone)]
 struct Work {
     pub(crate) inner: harvest::Work,
     pub(crate) props: Vec<Option<String>>,
 }
 
 impl Work {
-    fn from_ical_event_props(
-        event_props: &[::ical::property::Property],
-        config: &Config,
-    ) -> Result<Option<Self>> {
+    fn from_event(event: &Event, config: &Config) -> Result<Option<Self>> {
         let n_extra_props = config.extra_props.len();
         let mut props = Vec::<Option<String>>::with_capacity(n_extra_props);
         props.resize(n_extra_props, None);
@@ -29,9 +28,11 @@ impl Work {
             config.last_name.clone(),
             config.default_task.clone(),
         );
+        work.start_datetime = Some(event.start_dt.clone());
+        work.end_datetime = Some(event.end_dt.clone());
         let mut attendeies = HashSet::new();
         let accepted_state_name = "ACCEPTED".to_string();
-        for prop in event_props.iter() {
+        for prop in event.event.properties.iter() {
             match prop.name.as_str() {
                 "ORGANIZER" => {
                     if !config.required_attendies.is_empty() {
@@ -58,24 +59,6 @@ impl Work {
                     }
                 }
                 "SUMMARY" => work.notes = prop.value.clone(),
-                "DTSTART" => {
-                    let value = prop
-                        .value
-                        .as_ref()
-                        .ok_or(anyhow!("No value (datetime) for `DTSTART` property"))?;
-                    let date = crate::ical::parse_datetime(value, &prop.params)
-                        .map_err(|e| anyhow!("Invalid ical date {prop:?}\n{e}"))?;
-                    work.start_datetime = Some(date);
-                }
-                "DTEND" => {
-                    let value = prop
-                        .value
-                        .as_ref()
-                        .ok_or(anyhow!("No value (datetime) for `DTSTART` property"))?;
-                    let date = crate::ical::parse_datetime(value, &prop.params)
-                        .map_err(|e| anyhow!("Invalid ical date {prop:?}\n{e}"))?;
-                    work.end_datetime = Some(date);
-                }
                 name => {
                     if let Some(i) = config.extra_props.iter().position(|k| k.as_str() == name) {
                         props[i] = prop.value.clone();
@@ -132,14 +115,16 @@ fn announce_event_collection(config: &Config) {
         .start_date
         .map(|dt| {
             " from ".to_string()
-                + &dt.with_timezone(&Local).date_naive().to_string()
+                + &dt.with_timezone(&chrono::Local).date_naive().to_string()
                 + " (inclusive)"
         })
         .unwrap_or("".into());
     let end_date = &config
         .end_date
         .map(|dt| {
-            " to ".to_string() + &dt.with_timezone(&Local).date_naive().to_string() + " (exclusive)"
+            " to ".to_string()
+                + &dt.with_timezone(&chrono::Local).date_naive().to_string()
+                + " (exclusive)"
         })
         .unwrap_or("".into());
 
@@ -174,33 +159,48 @@ fn open_csv_writer(config: &Config) -> Result<csv::Writer<File>> {
     Ok(csv::WriterBuilder::new().from_writer(file))
 }
 
-fn process_event(event: &IcalEvent, config: &Config) -> Result<Option<Work>> {
+fn relevant_events(event: &IcalEvent, config: &Config) -> Result<Vec<Event>> {
+    //eprintln!();
+    let Some(_summary) = event.properties.iter().find(|p| p.name == "SUMMARY") else {
+        //eprintln!("WARN: No SUMMARY: {event:?}");
+        return Ok(vec![]);
+    };
+    //eprintln!("Processing event: {}", summary.value.as_ref().unwrap());
+    let event = match Event::try_from(event.clone()) {
+        Ok(event) => event,
+        Err(error) => {
+            eprintln!("WARN: {error}");
+            return Ok(vec![]);
+        }
+    };
+    //eprintln!("  rrule: {:?}", event.rrule);
+    let until_date = config.end_date.unwrap_or(Utc::now());
+    let from_date = &config.start_date;
+    Ok(event
+        .recurring()
+        .filter(|event| event.starts_within(&from_date, &Some(until_date)))
+        .collect())
+}
+
+fn event_to_work(event: &Event, config: &Config) -> Result<Option<Work>> {
     let patterns = &config.tasks;
-    let work = Work::from_ical_event_props(&event.properties, &config)?;
-    let Some(mut work) = work else {
+    let Some(mut work) = Work::from_event(&event, &config)? else {
         return Ok(None);
     };
-    if work
-        .inner
-        .starts_within(&config.start_date, &config.end_date)
+    if let Some(pattern) = patterns
+        .iter()
+        .filter(|p| {
+            work.inner
+                .notes
+                .as_ref()
+                .map(|s| p.regex.is_match(&s))
+                .unwrap_or(false)
+        })
+        .next()
     {
-        if let Some(pattern) = patterns
-            .iter()
-            .filter(|p| {
-                work.inner
-                    .notes
-                    .as_ref()
-                    .map(|s| p.regex.is_match(&s))
-                    .unwrap_or(false)
-            })
-            .next()
-        {
-            work.inner.task = pattern.task.clone();
-        }
-        Ok(Some(work))
-    } else {
-        Ok(None)
+        work.inner.task = pattern.task.clone();
     }
+    Ok(Some(work))
 }
 
 fn main() -> Result<()> {
@@ -221,14 +221,36 @@ fn main() -> Result<()> {
 
     announce_event_collection(&config);
 
-    let mut events_collected = 0;
+    let mut events = vec![];
     for calendar in ical_reader {
         let calendar = calendar?;
         for event in calendar.events {
-            if let Some(work) = process_event(&event, &config)? {
-                log_work(&work, &mut csv_writer).map_err(|e| anyhow!("Cannot log work\n{e}"))?;
-                events_collected += 1;
-            }
+            let mut event_chain = relevant_events(&event, &config)?;
+            events.append(&mut event_chain);
+        }
+    }
+
+    let mut deduplicated_events: HashMap<NaiveDate, HashMap<String, Event>> = HashMap::new();
+    for event in events {
+        if let Some(events) = deduplicated_events.get_mut(&event.start_dt.date_naive()) {
+            events.insert(event.uid.clone(), event);
+        } else {
+            let mut events = HashMap::new();
+            let start_dt = event.start_dt.clone();
+            events.insert(event.uid.clone(), event);
+            deduplicated_events.insert(start_dt.date_naive(), events);
+        }
+    }
+
+    let mut work_entries = 0;
+    for event in deduplicated_events
+        .values()
+        .map(|events| events.values())
+        .flatten()
+    {
+        if let Some(work) = event_to_work(&event, &config)? {
+            log_work(&work, &mut csv_writer).map_err(|e| anyhow!("Cannot log work\n{e}"))?;
+            work_entries += 1;
         }
     }
 
@@ -237,7 +259,7 @@ fn main() -> Result<()> {
         .map_err(|e| anyhow!("Cannot write to the output file\n{e}"))?;
 
     eprintln!();
-    eprintln!("Events collected. Events total: {events_collected}");
+    eprintln!("Events collected. Work entries total: {work_entries}");
 
     Ok(())
 }

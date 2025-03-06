@@ -59,18 +59,4 @@ impl Work {
             .as_ref()
             .map(|dt| dt.date_naive().to_string())
     }
-
-    pub(crate) fn starts_within(
-        &self,
-        start_date: &Option<DateTime<Utc>>,
-        end_date: &Option<DateTime<Utc>>,
-    ) -> bool {
-        match (self.start_datetime, start_date, end_date) {
-            (_, None, None) => true,
-            (Some(wsd), Some(csd), None) => wsd >= *csd,
-            (Some(wsd), None, Some(ced)) => wsd <= *ced,
-            (Some(wsd), Some(csd), Some(ced)) => wsd >= *csd && wsd <= *ced,
-            _ => false,
-        }
-    }
 }
