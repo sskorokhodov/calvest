@@ -117,10 +117,10 @@ fn cli() -> clap::Command {
                 .num_args(1),
             Arg::new("default-task")
                 .long("default-task")
-                .value_names(&["TASK_NAME", "PROJECT_NAME", "CLIENT_NAME"])
+                .value_names(&["TASK_NAME", "PROJECT_NAME", "PROJECT_CODE", "CLIENT_NAME"])
                 .action(ArgAction::Append)
                 .value_parser(NonEmptyStringValueParser::new())
-                .num_args(3)
+                .num_args(4)
                 .required_unless_present("print-completions")
                 .help("Set the default task with the task name."),
             Arg::new("first-name")
@@ -178,10 +178,16 @@ fn cli() -> clap::Command {
                 .help("Require this attendee to accept the event."),
             Arg::new("task")
                 .long("task")
-                .value_names(&["TASK_NAME", "PROJECT_NAME", "CLIENT_NAME", "REGEX"])
+                .value_names(&[
+                    "TASK_NAME",
+                    "PROJECT_NAME",
+                    "PROJECT_CODE",
+                    "CLIENT_NAME",
+                    "REGEX",
+                ])
                 .value_parser(NonEmptyStringValueParser::new())
                 .action(ArgAction::Append)
-                .num_args(4)
+                .num_args(5)
                 .help(
                     "Use these task, project, and client when the event summary matches the regex.",
                 ),
@@ -253,7 +259,8 @@ pub(crate) fn config() -> Config {
                 Task {
                     name: c[0].clone(),
                     project: c[1].clone(),
-                    client: c[2].clone(),
+                    project_code: c[2].clone(),
+                    client: c[3].clone(),
                 }
             })
             .unwrap(),
@@ -264,17 +271,18 @@ pub(crate) fn config() -> Config {
             .unwrap_or_default()
             .into_iter()
             .collect::<Vec<&String>>()
-            .chunks(4)
+            .chunks(5)
             .map(|c| {
                 let task = Task {
                     name: c[0].clone(),
                     project: c[1].clone(),
-                    client: c[2].clone(),
+                    project_code: c[2].clone(),
+                    client: c[3].clone(),
                 };
                 TaskPattern {
                     task,
                     // TODO parse during the config parsing
-                    regex: Regex::new(c[3]).unwrap(),
+                    regex: Regex::new(c[4]).unwrap(),
                 }
             })
             .collect(),

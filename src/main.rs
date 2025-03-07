@@ -109,6 +109,7 @@ fn log_work<IO: Write>(work: &Work, file: &mut csv::Writer<IO>) -> Result<()> {
             .as_str(),
         work.task.client.as_str(),
         work.task.project.as_str(),
+        work.task.project_code.as_str(),
         work.task.name.as_str(),
         notes.as_str(),
         hours.as_str(),

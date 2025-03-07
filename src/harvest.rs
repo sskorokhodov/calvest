@@ -7,6 +7,7 @@ pub(crate) const REQUIRED_CSV_COLUMN_NAMES: &[&str] = &[
     "Date",
     "Client",
     "Project",
+    "Project Code",
     "Task",
     "Notes",
     "Hours",
@@ -18,6 +19,7 @@ pub(crate) const REQUIRED_CSV_COLUMN_NAMES: &[&str] = &[
 pub(crate) struct Task {
     pub(crate) name: String,
     pub(crate) project: String,
+    pub(crate) project_code: String,
     pub(crate) client: String,
 }
 

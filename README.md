@@ -77,6 +77,7 @@ It can be convenient to create a Bash/Just script like this ...
 input='./my_calendar.ics'
 
 default_project='Default Project'
+default_project_code='P-CODE'
 default_task='Default Task'
 default_client='Default Client'
 first_name='First-name'
@@ -89,9 +90,13 @@ calvest \
   --output="${output}" \
   --first-name="${first_name}" \
   --last-name="${last_name}" \
-  --default-task "${default_task}" "${default_project}" "${default_client}" \
-  --task 'Daily' 'My Project' 'My Client' '^My Client *:: *Daily *$' \
-  --task 'My Task 1' 'My Project 1' 'My Client 1' '^My Client 1 :: *' \
+  --default-task \
+    "${default_task}" \
+    "${default_project}" \
+    "${default_project_code}" \
+    "${default_client}" \
+  --task 'Daily' 'My Project' 'MYP-CODE' 'My Client' '^My Client *:: *Daily *$' \
+  --task 'My Task 1' 'My Project 1' 'MYP1-CODE' 'My Client 1' '^My Client 1 :: *' \
   ${@}
 ```
 
