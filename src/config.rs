@@ -71,26 +71,25 @@ enum Period {
     ThisMonth,
 }
 
-fn current_month_start() -> DateTime<Utc> {
+fn current_month_start() -> DateTime<Local> {
     Local::now()
         .with_day(1)
         .unwrap()
         .with_time(NaiveTime::from_hms_opt(0, 0, 0).unwrap())
         .unwrap()
-        .to_utc()
 }
 
-fn prev_month_start(dt: &DateTime<Utc>) -> DateTime<Utc> {
+fn prev_month_start(dt: &DateTime<Local>) -> DateTime<Local> {
     dt.with_day(1)
         .unwrap()
-        .checked_sub_days(Days::new(1))
+        .checked_sub_months(Months::new(1))
         .unwrap()
 }
 
-fn next_month_start(dt: &DateTime<Utc>) -> DateTime<Utc> {
-    dt.checked_add_months(Months::new(1))
+fn next_month_start(dt: &DateTime<Local>) -> DateTime<Local> {
+    dt.with_day(1)
         .unwrap()
-        .with_day(1)
+        .checked_add_months(Months::new(1))
         .unwrap()
 }
 
@@ -226,12 +225,12 @@ pub(crate) fn config() -> Config {
         Some(Period::LastMonth) => {
             let end_date = current_month_start();
             let start_date = prev_month_start(&end_date);
-            (Some(start_date), Some(end_date))
+            (Some(start_date.to_utc()), Some(end_date.to_utc()))
         }
         Some(Period::ThisMonth) => {
             let start_date = current_month_start();
             let end_date = next_month_start(&start_date);
-            (Some(start_date), Some(end_date))
+            (Some(start_date.to_utc()), Some(end_date.to_utc()))
         }
         None => (
             matches.get_one::<DateTime<Utc>>("start-date").cloned(),
