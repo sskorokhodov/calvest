@@ -374,6 +374,31 @@ impl RRule {
         Ok(())
     }
 
+    /// Parses the BYMONTH rule part.
+    ///
+    /// According to RFC 5545 Section 3.3.10:
+    /// The BYMONTH rule part specifies a COMMA-separated list of ordinals
+    /// specifying months of the year. Valid values are 1 to 12.
+    ///
+    /// This rule part MUST NOT be specified more than once.
+    /// If specified, the list MUST NOT be empty.
+    ///
+    /// # Arguments
+    ///
+    /// - `s` - The string value associated with the BYMONTH key (e.g., "1,2,3").
+    /// - `bymonth` - A mutable reference to a vector where the parsed month
+    ///    numbers (1-12) will be stored.
+    ///
+    /// After the function returns, the `bymonth` array is sorted in ascending order.
+    ///
+    /// # Errors
+    ///
+    /// Returns an `Err` if:
+    /// - `bymonth` is already populated (i.e., BYMONTH is specified more than once).
+    /// - `s` cannot be parsed into a list of valid month numbers (e.g., "JAN",
+    ///   "0", "13", or non-numeric).
+    /// - The parsed list of months is empty (e.g., `s` was an empty string,
+    ///   though `split(',')` on "" yields [""]).
     fn parse_bymonth(s: &str, bymonth: &mut Vec<u8>) -> Result<()> {
         const NAME: &str = "BYMONTH";
         if !bymonth.is_empty() {
