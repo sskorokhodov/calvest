@@ -3,6 +3,8 @@ use anyhow::Result;
 use chrono::DateTime;
 use chrono::Datelike;
 use chrono::Local;
+use chrono::Month;
+use chrono::Months;
 use chrono::NaiveDateTime;
 use chrono::Utc;
 use chrono::Weekday;
@@ -97,6 +99,26 @@ impl From<Event> for EventIter {
     }
 }
 
+/*
+pub(crate) struct MonthSum {
+    years: u64,
+    month: u32,
+}
+
+fn add_months(month: u32, months: u64) -> Result<MonthSum> {
+    if month > 12 {
+        return Err(anyhow!(
+            "Invalid month number: {}. Month must be [0; 12]",
+            month
+        ));
+    }
+    let months_total = month as u64 + months;
+    let years = months_total / 12;
+    let month = (months_total % 12) as u32;
+    Ok(MonthSum { years, month })
+}
+*/
+
 impl EventIter {
     /// Cannot be BYMONTHDAY, BYYEARDAY, BYWEEKNO.
     ///
@@ -116,8 +138,7 @@ impl EventIter {
                     match &rrule.until {
                         Some(until_date) if next_date > *until_date => return None,
                         _ => {
-                            let next_date_wd = next_date.weekday();
-                            if rrule.byday.iter().any(|d| d.week_day == next_date_wd) {
+                            if rrule.byday_matches(&next_date) {
                                 let mut event = self.original_event.clone();
                                 let diff = next_date - self.original_event.start_dt;
                                 event.end_dt = self.original_event.end_dt + diff;
@@ -132,17 +153,70 @@ impl EventIter {
     }
 
     fn next_daily(&mut self) -> Option<Event> {
+        eprintln!(
+            "WARN: unsupported event frequency: DAILY. Event: {:?}",
+            self.original_event.event.summary().unwrap_or_default()
+        );
         // TODO
         None
     }
 
     fn next_monthly(&mut self) -> Option<Event> {
-        // TODO
-        None
+        match &self.original_event.rrule {
+            None => None,
+            Some(rrule) => {
+                // interval
+                // (?) bymonth
+                // bymonthday
+                // byday
+                // (unsupported) bysetpos
+                if !rrule.bymonth.is_empty() {
+                    eprintln!(
+                        "WARN: unsupported MONTHLY event RRULE: BYMONTH is not supported. Event: {:?}",
+                        self.original_event.event.summary().unwrap_or_default()
+                    );
+                    return None;
+                }
+                if !rrule.bysetpos.is_empty() {
+                    eprintln!(
+                        "WARN: unsupported MONTHLY event RRULE: BYSETPOS not supported. Event: {:?}",
+                        self.original_event.event.summary().unwrap_or_default()
+                    );
+                    return None;
+                }
+                let mut next_date = self.last_start_dt;
+                loop {
+                    next_date += chrono::Duration::days(1);
+                    if next_date.day() == 1 {
+                        next_date = next_date
+                            .checked_add_months(Months::new(rrule.interval - 1))
+                            .unwrap();
+                    }
+                    match &rrule.until {
+                        Some(until_date) if next_date > *until_date => return None,
+                        _ => {
+                            if rrule.bymonthday_matches(&next_date)
+                                && rrule.byday_matches(&next_date)
+                            {
+                                let mut event = self.original_event.clone();
+                                let diff = next_date - self.original_event.start_dt;
+                                event.end_dt = self.original_event.end_dt + diff;
+                                event.start_dt = next_date;
+                                return Some(event);
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fn next_yearly(&mut self) -> Option<Event> {
         // TODO
+        eprintln!(
+            "WARN: unsupported event frequency: YEARLY. Event: {:?}",
+            self.original_event.event.summary().unwrap_or_default()
+        );
         None
     }
 }
@@ -165,12 +239,19 @@ impl Iterator for EventIter {
                     count: Some(count), ..
                 }) if self.count >= *count => None,
                 Some(rrule) => {
-                    let next = match rrule.frequency {
-                        EventFrequency::Daily => self.next_daily(),
-                        EventFrequency::Weekly => self.next_weekly(),
-                        EventFrequency::Monthly => self.next_monthly(),
-                        EventFrequency::Yearly => self.next_yearly(),
-                        _ => None, // TODO
+                    let next = match &rrule.frequency {
+                        &EventFrequency::Daily => self.next_daily(),
+                        &EventFrequency::Weekly => self.next_weekly(),
+                        &EventFrequency::Monthly => self.next_monthly(),
+                        &EventFrequency::Yearly => self.next_yearly(),
+                        freq => {
+                            eprintln!(
+                                "WARN: unsupported event frequency: {:?}. Event: {:?}",
+                                freq,
+                                self.original_event.event.summary().unwrap_or_default()
+                            );
+                            None // TODO
+                        }
                     };
                     if let Some(next) = next {
                         self.count += 1;
@@ -182,6 +263,35 @@ impl Iterator for EventIter {
                 }
             },
         }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct ByMonthDayDay {
+    month_day: i8,
+}
+
+impl ByMonthDayDay {
+    fn matches(&self, dt: &DateTime<Utc>) -> bool {
+        if self.month_day > 0 {
+            dt.day() as i8 == self.month_day
+        } else {
+            let month_days = Month::try_from(dt.month() as u8)
+                .unwrap()
+                .num_days(dt.year())
+                .unwrap();
+            self.month_day.abs() as u8 == ((month_days - dt.day() as u8) / 7) + 1
+        }
+    }
+}
+
+impl TryFrom<i8> for ByMonthDayDay {
+    type Error = anyhow::Error;
+    fn try_from(value: i8) -> std::result::Result<Self, Self::Error> {
+        if value > 31 || value < -31 || value == 0 {
+            return Err(anyhow!("Invalud BYMONTHDAY value: {}", value));
+        }
+        Ok(Self { month_day: value })
     }
 }
 
@@ -214,7 +324,7 @@ impl ByDayDay {
             n if n > 2 => {
                 let (n, wd) = s.split_at(s.len() - 2);
                 let n = n.parse::<i32>()?;
-                if n > 4 {
+                if n > 4 || n == 0 {
                     Err(anyhow!("Invalid BYDAY. Unexpected week number '{}'.", n))
                 } else {
                     Ok(ByDayDay {
@@ -224,6 +334,26 @@ impl ByDayDay {
                 }
             }
             _ => Err(anyhow!("Unsupported BYDAY format '{}'.", s)),
+        }
+    }
+
+    fn matches(&self, dt: &DateTime<Utc>) -> bool {
+        if dt.weekday() == self.week_day {
+            if let Some(n) = self.n {
+                if n > 0 {
+                    n.abs() as u8 == (dt.day() as u8 / 7) + 1
+                } else {
+                    let month_days = Month::try_from(dt.month() as u8)
+                        .unwrap()
+                        .num_days(dt.year())
+                        .unwrap();
+                    n.abs() as u8 == ((month_days - dt.day() as u8) / 7) + 1
+                }
+            } else {
+                true
+            }
+        } else {
+            false
         }
     }
 }
@@ -236,19 +366,30 @@ pub(crate) struct RRule {
     interval: u32,
     week_start: Weekday,
     byday: Vec<ByDayDay>,
+    bymonthday: Vec<ByMonthDayDay>,
 
     #[allow(unused)]
     byweekno: Vec<i8>,
     #[allow(unused)]
     bymonth: Vec<u8>,
     #[allow(unused)]
-    bymonthday: Vec<i8>,
-    #[allow(unused)]
     byyearday: Vec<i16>,
+    #[allow(unused)]
+    bysetpos: Vec<i16>,
 }
+
+const ORDYRNUM_MAX: u16 = 366;
 
 /// RRULE:FREQ=WEEKLY;WKST=MO;UNTIL=20250707T070000Z;INTERVAL=1;BYDAY=MO,TU,WE,TH,FR
 impl RRule {
+    fn byday_matches(&self, dt: &DateTime<Utc>) -> bool {
+        self.byday.is_empty() || self.byday.iter().any(|d| d.matches(&dt))
+    }
+
+    fn bymonthday_matches(&self, dt: &DateTime<Utc>) -> bool {
+        self.bymonthday.is_empty() || self.bymonthday.iter().any(|d| d.matches(&dt))
+    }
+
     fn parse_frequency(s: &str, frequency: &mut Option<EventFrequency>) -> Result<()> {
         const NAME: &str = "FREQ";
         if frequency.is_some() {
@@ -419,10 +560,11 @@ impl RRule {
                 s
             ));
         }
+        bymonth.sort();
         Ok(())
     }
 
-    fn parse_bymonthday(s: &str, bymonthday: &mut Vec<i8>) -> Result<()> {
+    fn parse_bymonthday(s: &str, bymonthday: &mut Vec<ByMonthDayDay>) -> Result<()> {
         const NAME: &str = "BYWEEKNO";
         if !bymonthday.is_empty() {
             return Err(anyhow!(
@@ -433,7 +575,7 @@ impl RRule {
         }
         for m in s.split(',').map(i8::from_str) {
             let m = m.map_err(|e| anyhow!("Invalid {} '{}': {}", NAME, s, e))?;
-            bymonthday.push(m);
+            bymonthday.push(m.try_into()?);
         }
         if bymonthday.is_empty() {
             return Err(anyhow!(
@@ -454,11 +596,50 @@ impl RRule {
                 s
             ));
         }
-        for m in s.split(',').map(i16::from_str) {
-            let m = m.map_err(|e| anyhow!("Invalid {} '{}': {}", NAME, s, e))?;
-            byyearday.push(m);
+        for d in s.split(',').map(i16::from_str) {
+            let d = d.map_err(|e| anyhow!("Invalid {} '{}': {}", NAME, s, e))?;
+            if d.abs() > ORDYRNUM_MAX as i16 {
+                return Err(anyhow!(
+                    "Invalid {} '{}': absolute value must be <= {}",
+                    NAME,
+                    s,
+                    ORDYRNUM_MAX
+                ));
+            }
+            byyearday.push(d);
         }
         if byyearday.is_empty() {
+            return Err(anyhow!(
+                "Invalid RRULE: {} must not be empty: '{}'",
+                NAME,
+                s
+            ));
+        }
+        Ok(())
+    }
+
+    fn parse_bysetpos(s: &str, bysetpos: &mut Vec<i16>) -> Result<()> {
+        const NAME: &str = "BYSETPOS";
+        if !bysetpos.is_empty() {
+            return Err(anyhow!(
+                "Invalid RRULE: {} must not be set more than once: '{}'",
+                NAME,
+                s
+            ));
+        }
+        for d in s.split(',').map(i16::from_str) {
+            let d = d.map_err(|e| anyhow!("Invalid {} '{}': {}", NAME, s, e))?;
+            if d.abs() > ORDYRNUM_MAX as i16 {
+                return Err(anyhow!(
+                    "Invalid {} '{}': absolute value must be <= {}",
+                    NAME,
+                    s,
+                    ORDYRNUM_MAX
+                ));
+            }
+            bysetpos.push(d);
+        }
+        if bysetpos.is_empty() {
             return Err(anyhow!(
                 "Invalid RRULE: {} must not be empty: '{}'",
                 NAME,
@@ -479,12 +660,13 @@ impl RRule {
         let mut bymonth = vec![];
         let mut bymonthday = vec![];
         let mut byyearday = vec![];
+        let mut bysetpos = vec![];
 
         for param in s.split(';') {
             let Some((name, value)) = param.split_once('=') else {
                 return Err(anyhow!("Unexpected RRULE parameter: {}", param));
             };
-            match name {
+            match name.to_uppercase().as_str() {
                 "FREQ" => Self::parse_frequency(value, &mut frequency)?,
                 "UNTIL" => Self::parse_until(value, &mut until)?,
                 "COUNT" => Self::parse_count(value, &mut count)?,
@@ -495,6 +677,7 @@ impl RRule {
                 "BYMONTH" => Self::parse_bymonth(value, &mut bymonth)?,
                 "BYMONTHDAY" => Self::parse_bymonthday(value, &mut bymonthday)?,
                 "BYYEARDAY" => Self::parse_byyearday(value, &mut byyearday)?,
+                "BYSETPOS" => Self::parse_bysetpos(value, &mut bysetpos)?,
                 _ => {}
             }
         }
@@ -527,7 +710,36 @@ impl RRule {
             bymonth,
             bymonthday,
             byyearday,
+            bysetpos,
         })
+    }
+}
+
+pub(crate) trait Summary {
+    fn summary(&self) -> Option<String>;
+}
+
+impl Summary for IcalEvent {
+    fn summary(&self) -> Option<String> {
+        self.properties
+            .iter()
+            .find(|p| p.name.to_uppercase() == "SUMMARY")
+            .map(|p| p.value.clone())
+            .flatten()
+    }
+}
+
+pub(crate) trait StartDate {
+    fn start_date(&self) -> Option<DateTime<Utc>>;
+}
+
+impl StartDate for IcalEvent {
+    fn start_date(&self) -> Option<DateTime<Utc>> {
+        self.properties
+            .iter()
+            .find(|p| p.name.to_uppercase() == "DTSTART")
+            .map(|p| Event::parse_dtstart(p).ok())
+            .flatten()
     }
 }
 
@@ -548,6 +760,7 @@ impl Event {
         EventIter::from(self.clone())
     }
 
+    #[allow(unused)]
     pub(crate) fn starts_within(
         &self,
         start_date: &Option<DateTime<Utc>>,

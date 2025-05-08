@@ -7,6 +7,7 @@ use crate::ical::Event;
 use ::ical::{parser::ical::component::IcalEvent, IcalParser};
 use anyhow::{anyhow, Result};
 use chrono::{NaiveDate, Utc};
+use ical::{StartDate, Summary};
 use std::collections::{HashMap, HashSet};
 use std::fs::{File, OpenOptions};
 use std::io::{self, BufReader, Write};
@@ -161,8 +162,8 @@ fn open_csv_writer(config: &Config) -> Result<csv::Writer<File>> {
 
 fn relevant_events(event: &IcalEvent, config: &Config) -> Result<Vec<Event>> {
     //eprintln!();
-    let Some(_summary) = event.properties.iter().find(|p| p.name == "SUMMARY") else {
-        //eprintln!("WARN: No SUMMARY: {event:?}");
+    let Some(_summary) = event.summary() else {
+        eprintln!("WARN: No SUMMARY; start date: {:?}", event.start_date());
         return Ok(vec![]);
     };
     //eprintln!("Processing event: {}", summary.value.as_ref().unwrap());
@@ -178,7 +179,8 @@ fn relevant_events(event: &IcalEvent, config: &Config) -> Result<Vec<Event>> {
     let from_date = &config.start_date;
     Ok(event
         .recurring()
-        .filter(|event| event.starts_within(&from_date, &Some(until_date)))
+        .skip_while(|event| from_date.map(|sdt| event.start_dt < sdt).unwrap_or(false))
+        .take_while(|event| event.start_dt < until_date)
         .collect())
 }
 
